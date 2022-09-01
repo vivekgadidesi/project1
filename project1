@@ -1,0 +1,79 @@
+pipeline
+{
+    agent any
+    stages
+    {
+        stage('download')
+        {
+            steps
+            {
+                git 'https://github.com/intelliqittrainings/maven.git'
+            }
+        }
+        stage('build')
+        {
+            steps
+            {
+                sh 'mvn package'
+            }
+        }
+        stage('create dockerfile')
+        {
+            steps
+            {
+                sh 'cp /home/ubuntu/.jenkins/workspace/project1/webapp/target/webapp.war  /home/ubuntu/.jenkins/workspace/project1'
+                
+                sh '''cat>dockerfile<<EOF
+
+FROM tomee
+MAINTAINER vivek
+COPY webapp.war  /usr/local/tomee/webapps/javaapp.war
+EOF'''
+            }
+        }
+        stage('docker image creation')
+        {
+            steps
+            {
+                sh 'sudo docker build -t vivek222/javaapp .'
+            }
+        }
+        stage('push docker image')
+        {
+            steps
+            {
+               sh 'sudo docker push vivek222/javaapp'
+            }
+        }
+        stage('deploy javapp to qa servers using ansible')
+        {
+            steps
+            {
+                sh 'ssh ubuntu@172.31.91.110 ansible-playbook playbook1.yml -b'
+            }
+        }
+        stage('download selenium for testing')
+        {
+            steps
+            {
+                git 'https://github.com/intelliqittrainings/FunctionalTesting.git'
+                sh 'java -jar /home/ubuntu/.jenkins/workspace/project1/testing.jar'
+            }
+        }
+        stage('delete docker container')
+        {
+            steps
+            {
+                sh 'ssh ubuntu@172.31.91.110 ansible-playbook delete.yml -b'
+            }
+        }
+        stage('deploy to kubernetes cluster ')
+        {
+            steps
+            {
+                sh 'ssh ec2-user@172.31.93.234 kubectl apply -f deployment-javaapp.yml'
+                sh 'ssh ec2-user@172.31.93.234 kubectl apply -f service-javaapp.yml'
+            }
+        }
+    }
+}
